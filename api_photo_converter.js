@@ -2,145 +2,38 @@ const {
     GoogleGenerativeAI,
     HarmCategory,
     HarmBlockThreshold,
-    GoogleGenerativeAIFetchError // 
-  } = require("@google/generative-ai");
+    GoogleGenerativeAIFetchError // Correctly imported
+} = require("@google/generative-ai");
+const { GoogleAIFileManager } = require("@google/generative-ai/server");
+const fs = require("node:fs");
+const path = require("path");
+const sharp = require("sharp");
 
-
-  const { GoogleAIFileManager } = require("@google/generative-ai/server");
-  const fs = require("node:fs");
-  const path = require("path"); // path is needed for joining filenames
-  const sharp = require("sharp");
-  
-  // --- Configuration ---
-  const apiKey = process.env.GEMINI_API_KEY;
-  if (!apiKey) {
+// --- Configuration ---
+const apiKey = process.env.GEMINI_API_KEY;
+if (!apiKey) {
     throw new Error("GEMINI_API_KEY environment variable not set.");
-  }
-  const INPUT_IMAGE_PATH = "image.png"; // Define input image path
-  const TEMP_DIR = "./temp_quadrants"; // Directory to store temporary quadrants
-  // --- End Configuration ---
-  
-  const genAI = new GoogleGenerativeAI(apiKey);
-  const fileManager = new GoogleAIFileManager(apiKey);
-  
-  /**
-   * Uploads a file to Google Generative AI File Manager.
-   * Ensures the file exists before uploading.
-   * @param {string} filePath - Path to the file to upload.
-   * @returns {Promise<Object>} - Uploaded file object.
-   */
-  async function uploadToGemini(filePath) {
-    try {
-      // Check if file exists before upload attempt
-      await fs.promises.access(filePath, fs.constants.F_OK);
-      const stats = await fs.promises.stat(filePath);
-      if (stats.size === 0) {
-          throw new Error(`File is empty: ${filePath}`);
-      }
-  
-      // Mime type is determined by the library, no need to pass it explicitly here
-      // unless you have a very specific need or non-standard extension.
-      const uploadResult = await fileManager.uploadFile(filePath, {
-        // Mime type detection is usually automatic, but explicit is safer for PNG
-        mimeType: "image/png",
-        displayName: path.basename(filePath), // Use just the filename as display name
-      });
-      const file = uploadResult.file;
-      console.log(
-        `Uploaded file ${file.displayName} as ${file.name} with URI: ${file.uri}` // Log the URI too
-      );
-      // Add a small delay AFTER upload confirms, sometimes the API needs a moment
-      // for the file to be fully available for inference. Adjust if needed.
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      return file;
-    } catch (error) {
-      console.error(`Error uploading file ${filePath}:`, error);
-      throw error; // Re-throw to stop the process if upload fails
-    }
-  }
-  
-  /**
-   * Splits an image into four quadrants and saves them as separate PNG files
-   * in a specified directory.
-   * @param {string} imagePath - Path to the input image.
-   * @param {string} outputDir - Directory to save quadrant files.
-   * @returns {Promise<string[]>} - Array of absolute paths to quadrant files.
-   */
-  async function splitImageIntoQuadrants(imagePath, outputDir) {
-    try {
-      // Ensure output directory exists
-      await fs.promises.mkdir(outputDir, { recursive: true });
-  
-      const image = sharp(imagePath);
-      const metadata = await image.metadata();
-      const fullWidth = metadata.width;
-      const fullHeight = metadata.height;
-  
-      // Use Math.ceil for width/height to ensure coverage on odd dimensions
-      const halfWidth = Math.ceil(fullWidth / 2);
-      const halfHeight = Math.ceil(fullHeight / 2);
-  
-      const quadrants = [
-        { name: "quadrant_top_left.png", left: 0, top: 0 },
-        { name: "quadrant_top_right.png", left: fullWidth - halfWidth, top: 0 }, // Adjust right/bottom start points
-        { name: "quadrant_bottom_left.png", left: 0, top: fullHeight - halfHeight },
-        { name: "quadrant_bottom_right.png", left: fullWidth - halfWidth, top: fullHeight - halfHeight },
-      ];
-  
-      const quadrantFilePaths = [];
-  
-      for (const q of quadrants) {
-        const outputPath = path.join(outputDir, q.name);
-        const cropBox = {
-          left: q.left,
-          top: q.top,
-          // Ensure crop doesn't exceed original bounds
-          width: Math.min(halfWidth, fullWidth - q.left),
-          height: Math.min(halfHeight, fullHeight - q.top),
-        };
-  
-        // Basic validation
-        if (cropBox.width <= 0 || cropBox.height <= 0) {
-          console.warn(`Skipping invalid crop area for ${q.name}:`, cropBox);
-          continue;
-        }
-  
-        try {
-          console.log(`Extracting ${q.name} with box:`, cropBox);
-          await image
-            .clone()
-            .extract(cropBox)
-            .toFile(outputPath);
-          quadrantFilePaths.push(outputPath); // Store the full path
-          console.log(`Saved ${outputPath}`);
-        } catch (err) {
-          console.error(`Error extracting ${q.name} to ${outputPath}:`, err);
-          // Decide if you want to continue or stop if one quadrant fails
-        }
-      }
-  
-      return quadrantFilePaths;
-    } catch (error) {
-      console.error(`Error splitting image ${imagePath}:`, error);
-      throw error; // Stop if splitting fails
-    }
-  }
-  
-  // Configure the Generative AI model
-  // Using gemini-1.5-flash-latest as it's generally recommended for File API
-  const model = genAI.getGenerativeModel({
+}
+const INPUT_IMAGE_PATH = "image.png"; // Define input image path
+const TEMP_DIR = "./temp_quadrants"; // Directory to store temporary quadrants
+// --- End Configuration ---
+
+const genAI = new GoogleGenerativeAI(apiKey);
+const fileManager = new GoogleAIFileManager(apiKey);
+
+// --- Model Configuration --- (Moved up for clarity)
+const model = genAI.getGenerativeModel({
     model: "gemini-1.5-flash-latest", // Recommended model for File API
     systemInstruction:
       "You are a detail-oriented ingredient recognition assistant. Given a photo of a pantry or refrigerator, your goal is to return a highly accurate, deduplicated list of raw food ingredients suitable for cooking or recipes. Your output must be precise, structured, and formatted for code/database use.\n\n⸻\n\n🔹 Output Format:\n\n{\n  \"ingredients\": [\n    {\"name\": \"banana\"},\n    {\"name\": \"carrot\"},\n    {\"name\": \"egg\"},\n    {\"name\": \"cheese\"}\n  ]\n}\n\n⸻\n\n🔹 Extraction Rules:\n\t1.\tOnly Include Raw Ingredients:\n\t•\t✅ YES: Fruits, vegetables, cheese, eggs, raw meats, herbs, raw grains.\n\t•\t❌ NO: Pre-made meals, leftovers, mixed dishes (e.g., pizza, salad), or liquids of any kind.\n\t2.\tItem Name Rules:\n\t•\tLowercase only.\n\t•\tSingular nouns (e.g., “tomato” not “tomatoes”).\n\t•\tSpecific food names (e.g., “bell pepper” not “vegetable”).\n\t•\tNo brand names, special characters, or vague categories.\n\t3.\tClarity Threshold:\n\t•\tOnly include ingredients you can identify with high confidence.\n\t•\tIf uncertain or partially obscured, leave it out.\n\t4.\tDuplicates:\n\t•\tIngredient list must contain only unique names. No repetition allowed.\n",
-  });
-  
-  const generationConfig = {
-    temperature: 0.5, // Lower temp for more deterministic JSON output
+});
+
+const generationConfig = {
+    temperature: 0.5,
     topP: 0.95,
     topK: 40,
     maxOutputTokens: 8192,
-    responseMimeType: "application/json", // Request JSON directly
-    // responseSchema is good, keep it
+    responseMimeType: "application/json",
     responseSchema: {
       type: "object",
       properties: {
@@ -148,218 +41,295 @@ const {
           type: "array",
           items: {
             type: "object",
-            properties: {
-              name: {
-                type: "string",
-              },
-            },
+            properties: { name: { type: "string" } },
             required: ["name"],
           },
         },
       },
       required: ["ingredients"],
     },
-  };
-  
-  /**
-   * Cleans up temporary files.
-   * @param {string[]} filePaths - Array of file paths to delete.
-   * @param {string} dirPath - Directory path to delete.
-   */
-  async function cleanupTempFiles(filePaths, dirPath) {
-      console.log("Cleaning up temporary files...");
-      for (const filePath of filePaths) {
-          try {
-              await fs.promises.unlink(filePath);
-              console.log(`Deleted ${filePath}`);
-          } catch (err) {
-              // Log error but continue cleanup
-              console.error(`Failed to delete temp file ${filePath}:`, err);
+};
+
+// --- Helper Functions ---
+
+/**
+ * Uploads a file to Gemini, ensuring it exists and isn't empty.
+ * Includes a delay after upload confirmation.
+ * @param {string} filePath - Path to the file.
+ * @returns {Promise<Object|null>} Uploaded file object or null on error.
+ */
+async function uploadToGemini(filePath) {
+    try {
+        await fs.promises.access(filePath, fs.constants.F_OK);
+        const stats = await fs.promises.stat(filePath);
+        if (stats.size === 0) {
+            console.warn(`Skipping empty file: ${filePath}`);
+            return null;
+        }
+
+        const uploadResult = await fileManager.uploadFile(filePath, {
+            mimeType: "image/png",
+            displayName: path.basename(filePath),
+        });
+        const file = uploadResult.file;
+        console.log(`Uploaded ${file.displayName} (URI: ${file.uri})`);
+        await new Promise(resolve => setTimeout(resolve, 1500)); // Post-upload delay
+        return file;
+    } catch (error) {
+        console.error(`Error uploading ${filePath}:`, error);
+        return null; // Return null to indicate failure
+    }
+}
+
+/**
+ * Splits an image into four quadrants.
+ * @param {string} imagePath - Path to the input image.
+ * @param {string} outputDir - Directory to save quadrant files.
+ * @returns {Promise<string[]>} Array of absolute paths to quadrant files.
+ */
+async function splitImageIntoQuadrants(imagePath, outputDir) {
+    // (Keep the implementation from the previous version - it's good)
+    try {
+        await fs.promises.mkdir(outputDir, { recursive: true });
+        const image = sharp(imagePath);
+        const metadata = await image.metadata();
+        const fullWidth = metadata.width;
+        const fullHeight = metadata.height;
+        const halfWidth = Math.ceil(fullWidth / 2);
+        const halfHeight = Math.ceil(fullHeight / 2);
+
+        const quadrants = [
+          { name: "quadrant_top_left.png", left: 0, top: 0 },
+          { name: "quadrant_top_right.png", left: fullWidth - halfWidth, top: 0 },
+          { name: "quadrant_bottom_left.png", left: 0, top: fullHeight - halfHeight },
+          { name: "quadrant_bottom_right.png", left: fullWidth - halfWidth, top: fullHeight - halfHeight },
+        ];
+        const quadrantFilePaths = [];
+        for (const q of quadrants) {
+          const outputPath = path.join(outputDir, q.name);
+          const cropBox = {
+            left: q.left, top: q.top,
+            width: Math.min(halfWidth, fullWidth - q.left),
+            height: Math.min(halfHeight, fullHeight - q.top),
+          };
+          if (cropBox.width > 0 && cropBox.height > 0) {
+            try {
+              console.log(`Extracting ${q.name}...`);
+              await image.clone().extract(cropBox).toFile(outputPath);
+              quadrantFilePaths.push(outputPath);
+              console.log(`Saved ${outputPath}`);
+            } catch (err) {
+              console.error(`Error extracting ${q.name}:`, err);
+            }
+          } else {
+            console.warn(`Skipping invalid crop area for ${q.name}`);
           }
-      }
-      try {
-        // Attempt to remove the directory if it's empty
+        }
+        return quadrantFilePaths;
+    } catch (error) {
+        console.error(`Error splitting image ${imagePath}:`, error);
+        throw error;
+    }
+}
+
+/**
+ * Analyzes a single uploaded image quadrant using the Gemini API.
+ * Handles JSON parsing and extraction from potential Markdown fences.
+ * @param {Object} file - The uploaded file object from GoogleAIFileManager.
+ * @param {GenerativeModel} model - The configured Gemini model instance.
+ * @param {Object} generationConfig - The generation configuration object.
+ * @returns {Promise<Array<{name: string}>>} - An array of ingredient objects found, or empty array on error/no ingredients.
+ */
+async function analyzeQuadrant(file, model, generationConfig) {
+    console.log(`\nAnalyzing ${file.displayName}...`);
+    try {
+        const result = await model.generateContent([
+            { text: "Analyze this image quadrant for ingredients based on the rules." },
+            { fileData: { fileUri: file.uri, mimeType: file.mimeType } },
+        ], generationConfig);
+
+        const response = result.response;
+        const candidate = response?.candidates?.[0];
+
+        if (!candidate?.content?.parts?.length) {
+            console.warn("No valid candidates or parts found in response for", file.displayName, response.promptFeedback ? `Feedback: ${JSON.stringify(response.promptFeedback)}` : '');
+            return [];
+        }
+
+        const part = candidate.content.parts[0];
+        const rawText = part.text;
+        let parsed = null;
+
+        if (rawText) {
+            // console.log("Raw text response for", file.displayName, ":\n", rawText); // Optional: Log raw text
+
+            // Try extracting JSON from potential markdown ```json ... ``` blocks or standalone JSON
+            const jsonRegex = /```(?:json)?\s*([\s\S]*?)\s*```|^\s*({[\s\S]*}|\[[\s\S]*\])\s*$/m;
+            const match = rawText.match(jsonRegex);
+            const jsonToParse = match ? (match[1] || match[2]) : rawText.trim(); // Use extracted or trimmed raw text
+
+            if (jsonToParse) {
+                try {
+                    parsed = JSON.parse(jsonToParse);
+                    // console.log("Successfully parsed JSON for", file.displayName); // Optional: Log parse success
+                } catch (parseError) {
+                    console.error(`Failed to parse JSON for ${file.displayName}:`, parseError.message);
+                    // console.error("String that failed parsing:", jsonToParse); // Optional: Log failing string
+                    return []; // Return empty on parse error
+                }
+            } else {
+                 console.warn(`No JSON content could be extracted or identified for ${file.displayName}`);
+                 return [];
+            }
+        } else {
+             console.warn("No text found in response part for", file.displayName);
+             return [];
+        }
+
+        // Validate the parsed structure and return the ingredients array
+        if (parsed && Array.isArray(parsed.ingredients)) {
+            // Optional: Further validation of each ingredient object if needed
+             return parsed.ingredients.filter(ing => ing && typeof ing.name === 'string' && ing.name.trim()); // Return only valid ingredients
+        } else {
+            console.warn("Parsed data does not contain a valid 'ingredients' array for", file.displayName);
+            return [];
+        }
+
+    } catch (error) {
+        if (error instanceof GoogleGenerativeAIFetchError) {
+            console.error(`API Error processing ${file.displayName} (URI: ${file.uri}): Status ${error.status}, Message: ${error.message}`, error.errorDetails || '');
+        } else {
+            console.error(`Generic Error processing ${file.displayName} (URI: ${file.uri}):`, error);
+        }
+        return []; // Return empty array on any processing error for this quadrant
+    }
+}
+
+
+/**
+ * Cleans up temporary files and directory.
+ * @param {string[]} filePaths - Array of file paths to delete.
+ * @param {string} dirPath - Directory path to delete.
+ */
+async function cleanupTempFiles(filePaths, dirPath) {
+    console.log("\nCleaning up temporary files...");
+    for (const filePath of filePaths) {
+        try {
+            await fs.promises.unlink(filePath);
+            // console.log(`Deleted ${filePath}`); // Optional: Verbose logging
+        } catch (err) {
+            console.warn(`Failed to delete temp file ${filePath}:`, err.message);
+        }
+    }
+    try {
         await fs.promises.rmdir(dirPath);
         console.log(`Deleted directory ${dirPath}`);
-      } catch (err) {
-          // Ignore errors if directory is not empty or other issues
-          console.warn(`Could not remove directory ${dirPath} (might not be empty or other error):`, err.message);
-      }
-  }
-  
-  /**
-   * Main function to process the image and extract ingredients.
-   */
-  async function run() {
-    let quadrantFiles = []; // Keep track of created files for cleanup
-    try {
-      // 1. Split the image into quadrants
-      quadrantFiles = await splitImageIntoQuadrants(INPUT_IMAGE_PATH, TEMP_DIR);
-      if (quadrantFiles.length === 0) {
-          console.error("No quadrant files were created. Exiting.");
-          return;
-      }
-      console.log("Quadrant files created:", quadrantFiles);
-  
-      // 2. Upload all quadrant files sequentially (can be parallelized with Promise.all if preferred)
-      const uploadedFileObjects = [];
-      for (const filePath of quadrantFiles) {
-          // Make sure the file exists and isn't empty before trying to upload
-          try {
-              const stats = await fs.promises.stat(filePath);
-              if (stats.size > 0) {
-                  const fileObject = await uploadToGemini(filePath);
-                  uploadedFileObjects.push(fileObject);
-              } else {
-                  console.warn(`Skipping empty file: ${filePath}`);
-              }
-          } catch (uploadError) {
-              console.error(`Failed to upload ${filePath}, skipping analysis for this quadrant. Error:`, uploadError);
-              // Decide if you want to stop the whole process or just skip this quadrant
-              // continue; // To skip this quadrant and proceed
-              // throw uploadError; // To stop everything
-          }
-      }
-  
-  
-      if (uploadedFileObjects.length === 0) {
-          console.error("No files were successfully uploaded. Cannot proceed with analysis.");
-          return; // Exit if no files were uploaded
-      }
-  
-      // 3. Analyze each quadrant
-      const ingredientSet = new Set();
-  
-      // You can create a new chat session for each analysis or reuse one.
-      // Reusing might build context, but for independent quadrant analysis,
-      // separate calls might be cleaner. Let's use generateContent for simplicity.
-      // (Using chatSession like before is also fine, just ensure correct file object is passed each time)
-  
-      console.log("\n--- Analyzing Quadrants ---");
-      for (const file of uploadedFileObjects) {
-        console.log(`\nAnalyzing ${file.displayName}...`);
-        try {
-          // *** THE KEY FIX IS HERE: Use file.uri and file.mimeType ***
-          const result = await model.generateContent([
-            { text: "Analyze this image quadrant for ingredients based on the rules." },
-            {
-              fileData: {
-                // Use the URI provided by the File API
-                fileUri: file.uri,
-                // Use the mimeType confirmed by the File API
-                mimeType: file.mimeType,
-              },
-            },
-          ], generationConfig); // Pass generationConfig here for generateContent
-  
-          const response = result.response; // Easier access
-          console.log("API Response Status:", response.promptFeedback || 'OK'); // Log safety ratings etc.
-  
-          const candidate = response.candidates?.[0];
-          let parsed = null; // Initialize parsed to null
-  
-          if (candidate && candidate.content && candidate.content.parts && candidate.content.parts.length > 0) {
-              const part = candidate.content.parts[0];
-              const rawText = part.text; // Get the raw text content
-  
-              if (rawText) {
-                  console.log("Raw text response for", file.displayName, ":\n", rawText); // Log the raw text first
-  
-                  // Regex to extract JSON content from potential markdown code blocks
-                  // It looks for ```json ... ``` or just starts with { or [
-                  const jsonRegex = /```(?:json)?\s*([\s\S]*?)\s*```|^\s*({[\s\S]*}|\[[\s\S]*\])\s*$/m;
-                  const match = rawText.match(jsonRegex);
-                  let jsonToParse = null;
-  
-                  if (match) {
-                      // If match[1] exists, it's from the ```json block
-                      // If match[2] exists, it's a standalone JSON object/array
-                      jsonToParse = match[1] || match[2];
-                      console.log("Extracted JSON string for parsing:\n", jsonToParse);
-                  } else {
-                      // If regex doesn't match, maybe it's plain JSON without fences?
-                      // Or maybe it's just invalid text. Let's assume it *might* be JSON.
-                      jsonToParse = rawText.trim(); // Trim whitespace just in case
-                       console.log("Could not extract with regex, attempting to parse raw trimmed text:\n", jsonToParse);
-                  }
-  
-  
-                  if (jsonToParse) {
-                      try {
-                          parsed = JSON.parse(jsonToParse); // Try parsing the extracted/trimmed string
-                           console.log("Successfully parsed JSON for", file.displayName);
-                      } catch (parseError) {
-                          console.error(`Failed to parse JSON for ${file.displayName} after extraction:`, parseError);
-                          console.error("String that failed parsing:", jsonToParse); // Log the exact string that failed
-                          parsed = null; // Ensure parsed is null if parsing fails
-                      }
-                  } else {
-                       console.warn(`No JSON content could be extracted or identified for ${file.displayName}`);
-                  }
-  
-              } else if (part.object) {
-                   // If the SDK *did* manage to pre-parse it (less likely now, but possible)
-                   parsed = part.object;
-                   console.log("SDK provided pre-parsed object for", file.displayName, ":", JSON.stringify(parsed, null, 2));
-              } else {
-                   console.warn("No text or parsable object found in response part for", file.displayName);
-              }
-          } else {
-              console.warn("No valid candidates or parts found in response for", file.displayName);
-          }
-  
-          // Now 'parsed' will be the JavaScript object if successful, or null otherwise
-          // The rest of the logic using 'parsed' can continue...
-          // console.log("Final Parsed Object for", file.displayName, ":", JSON.stringify(parsed, null, 2)); // You can uncomment this for debugging
-  
-          if (parsed && Array.isArray(parsed.ingredients)) {
-            parsed.ingredients.forEach((ing) => {
-              if (ing.name && typeof ing.name === 'string') {
-                  // Basic validation/cleaning
-                  const cleanedName = ing.name.trim().toLowerCase();
-                  if (cleanedName) { // Ensure not empty after trimming
-                      ingredientSet.add(cleanedName);
-                      console.log(`  -> Added: ${cleanedName}`);
-                  } else {
-                      console.warn(`  -> Skipped empty ingredient name from ${file.displayName}`);
-                  }
-              } else {
-                   console.warn(`  -> Skipped invalid ingredient format from ${file.displayName}:`, ing);
-              }
-            });
-          } else {
-              console.warn("No valid ingredients array found in response for", file.displayName);
-          }
-        } catch (error) {
-          // Log the specific error from the API call
-          if (error instanceof GoogleGenerativeAIFetchError) {
-              console.error(
-                  `API Error processing ${file.displayName} (URI: ${file.uri}):`,
-                  `Status: ${error.status}, Message: ${error.message}`,
-                  error.errorDetails ? `\nDetails: ${JSON.stringify(error.errorDetails)}` : ""
-              );
-          } else {
-              console.error(`Generic Error processing ${file.displayName} (URI: ${file.uri}):`, error);
-          }
-          // Decide whether to continue with other quadrants or stop
-        }
-         // Optional small delay between API calls to avoid rate limits
-         await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
-      }
-  
-      // 4. Combine and Log Results
-      const combinedList = Array.from(ingredientSet).map((name) => ({ name })); // Convert Set back to array of objects
-      console.log("\n--- Combined Ingredient List ---");
-      console.log(JSON.stringify({ ingredients: combinedList }, null, 2)); // Pretty print final JSON
-  
-    } catch (error) {
-        console.error("\n--- An error occurred during the run ---");
-        console.error(error);
-    } finally {
-        // 5. Cleanup temporary quadrant files and directory
-        await cleanupTempFiles(quadrantFiles, TEMP_DIR);
+    } catch (err) {
+        // Ignore errors (e.g., dir not empty if file deletion failed)
+        console.warn(`Could not remove directory ${dirPath}:`, err.message);
     }
-  }
-  
-  // Execute the main function
-  run();
+}
+
+/**
+ * Main function to process the image, analyze quadrants, and combine ingredients.
+ * @returns {Promise<Array<{name: string}>>} - The final deduplicated list of ingredient objects.
+ */
+async function run() {
+    let quadrantFiles = [];
+    const ingredientSet = new Set(); // Use Set for automatic deduplication of names
+
+    try {
+        // 1. Split Image
+        console.log("--- Splitting Image ---");
+        quadrantFiles = await splitImageIntoQuadrants(INPUT_IMAGE_PATH, TEMP_DIR);
+        if (quadrantFiles.length === 0) {
+            console.error("No quadrant files were created. Exiting.");
+            return []; // Return empty list
+        }
+        console.log(`Created ${quadrantFiles.length} quadrant files.`);
+
+        // 2. Upload Quadrants (in parallel)
+        console.log("\n--- Uploading Quadrants ---");
+        const uploadPromises = quadrantFiles.map(filePath => uploadToGemini(filePath));
+        const uploadResults = await Promise.all(uploadPromises);
+        const uploadedFileObjects = uploadResults.filter(file => file !== null); // Filter out failed uploads
+
+        if (uploadedFileObjects.length === 0) {
+            console.error("No files were successfully uploaded. Cannot proceed with analysis.");
+            return []; // Return empty list
+        }
+        console.log(`Successfully uploaded ${uploadedFileObjects.length} files.`);
+
+        // 3. Analyze Each Quadrant (sequentially to manage rate limits)
+        console.log("\n--- Analyzing Quadrants ---");
+        for (const file of uploadedFileObjects) {
+            const ingredientsFound = await analyzeQuadrant(file, model, generationConfig);
+
+            // Add valid, cleaned names to the Set
+            ingredientsFound.forEach(ing => {
+                const cleanedName = ing.name.trim().toLowerCase();
+                if (cleanedName) { // Ensure not empty after cleaning
+                     if (!ingredientSet.has(cleanedName)) { // Log only when adding a *new* item
+                        console.log(`  -> Found: ${cleanedName}`);
+                        ingredientSet.add(cleanedName);
+                    }
+                }
+            });
+             // Optional delay between API calls
+             await new Promise(resolve => setTimeout(resolve, 1000)); // 1 second delay
+        }
+
+        // 4. Combine Results
+        const combinedList = Array.from(ingredientSet).map(name => ({ name })); // Convert Set<string> to Array<{name: string}>
+
+        console.log("\n--- Combined Ingredient List ---");
+        console.log(JSON.stringify({ ingredients: combinedList }, null, 2));
+
+        return combinedList; // Return the final list
+
+    } catch (error) {
+        console.error("\n--- An unhandled error occurred during the run ---");
+        console.error(error);
+        return []; // Return empty list on major error
+    } finally {
+        // 5. Cleanup
+        if (quadrantFiles.length > 0) {
+            await cleanupTempFiles(quadrantFiles, TEMP_DIR);
+        }
+    }
+}
+
+// --- Execute ---
+run()
+    .then(finalIngredientList => {
+        console.log("\n--- Script Finished ---");
+        if (finalIngredientList.length > 0) {
+            console.log(`Processing complete. Found ${finalIngredientList.length} unique ingredients.`);
+
+            // --- DATABASE INTEGRATION POINT ---
+            // You can now use the 'finalIngredientList' array here
+            // Example:
+            // await saveIngredientsToDatabase(finalIngredientList);
+            console.log("\nDB Integration Placeholder:");
+            console.log("Ingredients ready for database:", finalIngredientList.map(ing => ing.name).join(', '));
+            // --- End DB Integration ---
+
+        } else {
+            console.log("Processing complete. No ingredients were identified.");
+        }
+    })
+    .catch(err => {
+        console.error("\n--- Fatal Error ---");
+        console.error("Script execution failed:", err);
+        process.exitCode = 1; // Indicate failure
+    });
+
+// Example placeholder for DB function
+// async function saveIngredientsToDatabase(ingredients) {
+//     console.log(`Simulating save of ${ingredients.length} ingredients to DB...`);
+//     // Replace with your actual database logic (e.g., using Prisma, Sequelize, node-postgres, mongodb driver etc.)
+//     // for (const ingredient of ingredients) {
+//     //     await db.collection('ingredients').insertOne(ingredient);
+//     // }
+//     console.log("DB simulation complete.");
+// }
