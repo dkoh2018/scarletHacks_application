@@ -2,27 +2,29 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-const path = require('path');
 
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-mongoose.connect('mongodb://localhost:27017/recipeDB', {
-  useNewUrlParser: true,
-  useUnifiedTopology: true,
-});
+// ✅ Connect to MongoDB
+mongoose.connect('mongodb://localhost:27017/recipeDB');
 
-// User model
+// ✅ Define Schemas & Models
+const ingredientSchema = new mongoose.Schema({
+  id: { type: Number, required: true, unique: true },
+  name: { type: String, required: true },
+});
+const Ingredient = mongoose.model('Ingredient', ingredientSchema);
+
 const userSchema = new mongoose.Schema({
   userId: { type: Number, required: true, unique: true },
   userName: { type: String, required: true },
-  photoId: Number,
+  ingredients: [Number],
   recommandedRecipeList: [Number],
 });
 const User = mongoose.model('User', userSchema);
 
-// Recipe model
 const recipeSchema = new mongoose.Schema({
   recipeId: { type: Number, required: true, unique: true },
   recipeName: { type: String, required: true },
@@ -33,14 +35,15 @@ const recipeSchema = new mongoose.Schema({
 });
 const Recipe = mongoose.model('Recipe', recipeSchema);
 
-// API routes
-
-// Root route
+// ✅ Routes
 app.get('/', (req, res) => {
   res.send('Welcome to the Recipe API');
 });
 
-// User endpoints
+app.get('/api/ping', (req, res) => {
+  res.send('pong from EXPRESS server!');
+});
+
 app.post('/api/users', async (req, res) => {
   try {
     const user = new User(req.body);
@@ -56,7 +59,6 @@ app.get('/api/users/:userId', async (req, res) => {
   user ? res.send(user) : res.status(404).send({ error: 'User not found' });
 });
 
-// Recipe endpoints
 app.post('/api/recipes', async (req, res) => {
   try {
     const recipe = new Recipe(req.body);
@@ -72,21 +74,73 @@ app.get('/api/recipes/:recipeId', async (req, res) => {
   recipe ? res.send(recipe) : res.status(404).send({ error: 'Recipe not found' });
 });
 
-// Recommanded recipes by user
-app.get('/api/users/:userId/recommanded-recipes', async (req, res) => {
-  const user = await User.findOne({ userId: req.params.userId });
-  if (!user) return res.status(404).send({ error: 'User not found' });
-  const recipes = await Recipe.find({ recipeId: { $in: user.recommandedRecipeList } });
-  res.send(recipes);
+app.post('/api/ingredients', async (req, res) => {
+  try {
+    const ingredient = new Ingredient(req.body);
+    await ingredient.save();
+    res.status(201).send(ingredient);
+  } catch (err) {
+    res.status(400).send({ error: err.message });
+  }
 });
 
-// 404 handler
+app.get('/api/ingredients', async (req, res) => {
+  const ingredients = await Ingredient.find();
+  res.send(ingredients);
+});
+
+// ✅ Seed Route
+app.post('/api/seed', async (req, res) => {
+  try {
+    await Ingredient.deleteMany({});
+    await Recipe.deleteMany({});
+    await User.deleteMany({});
+
+    await Ingredient.insertMany([
+      { id: 1, name: 'Tomato' },
+      { id: 2, name: 'Cheese' },
+      { id: 3, name: 'Pasta' },
+    ]);
+
+    await Recipe.insertMany([
+      {
+        recipeId: 101,
+        recipeName: 'Tomato Pasta',
+        ingredientsList: [1, 3],
+        instruction: 'Boil pasta. Add tomato sauce.',
+        time: 20,
+        level: 'easy',
+      },
+      {
+        recipeId: 102,
+        recipeName: 'Cheese Tomato Pasta',
+        ingredientsList: [1, 2, 3],
+        instruction: 'Cook pasta. Add tomato and cheese.',
+        time: 25,
+        level: 'mid',
+      },
+    ]);
+
+    await User.create({
+      userId: 1,
+      userName: 'Alice',
+      ingredients: [1, 2],
+      recommandedRecipeList: [101],
+    });
+
+    res.send({ message: 'Seed data inserted' });
+  } catch (err) {
+    res.status(500).send({ error: err.message });
+  }
+});
+
+// ✅ 404 fallback
 app.use((req, res) => {
   res.status(404).send('Page not found');
 });
 
-// Start server
+// ✅ Start Server
 const PORT = process.env.PORT || 4000;
 app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
+  console.log(`✅ Server running at http://localhost:${PORT}`);
 });
