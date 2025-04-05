@@ -1,138 +1,82 @@
 'use client';
 
-import Image from "next/image";
-
-import SpeedDialTooltipOpen from "../components/SpeedDialTooltipOpen"; // adjust path as needed
-
+import { useRef, useState } from 'react';
+import PhotoCapture from '../components/PhotoCapture';
+import IngredientsList from '../components/IngredientsList';
+import RecipeList from '../components/RecipeList';
+import ActionButton from '../components/ActionButton';
 
 export default function Home() {
+  const [ingredients, setIngredients] = useState([
+    'Apples', 'Chicken', 'Broccoli', 'Tomatoes', 'Carrots', 
+    'Flour', 'Ketchup', 'Lettuce', 'White Bread', 'Steak', 
+    'Butter', '2% Milk'
+  ]);
+  
+  const [recipes, setRecipes] = useState([
+    {
+      id: 1,
+      title: 'Chicken Stir Fry',
+      description: 'A quick and healthy stir fry with chicken and vegetables.',
+      imagePlaceholder: true
+    },
+    {
+      id: 2,
+      title: 'Apple Pie',
+      description: 'Classic apple pie with a buttery crust and cinnamon filling.',
+      imagePlaceholder: true
+    },
+    {
+      id: 3,
+      title: 'Steak Sandwich',
+      description: 'Juicy steak on toasted bread with fresh lettuce and tomato.',
+      imagePlaceholder: true
+    },
+    {
+      id: 4,
+      title: 'Garden Salad',
+      description: 'Fresh vegetables tossed together for a healthy side dish.',
+      imagePlaceholder: true
+    },
+    {
+      id: 5,
+      title: 'Pasta Primavera',
+      description: 'Light pasta dish with seasonal vegetables in a creamy sauce.',
+      imagePlaceholder: true
+    }
+  ]);
+
+  const onPhotoCapture = (photoData) => {
+    console.log('Photo captured:', photoData);
+    // In the future, this would call your API to analyze the photo
+  };
+
   return (
-    <div className="grid grid-rows-[1fr_1fr] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <div className="relative flex flex-col items-center justify-center w-full border-2 border-solid border-gray-300 rounded-lg p-12">
-        <h1 className="text-3xl font-bold mb-4">Photo Here</h1>
-        <div className="w-64 h-64 bg-gray-200 flex items-center justify-center">
-          <span className="text-gray-500">Image Placeholder</span>
-        </div>
+    <div className="space-y-12">
+      {/* Header */}
+      <header className="text-center">
+        <h1 className="text-4xl font-bold text-primary mb-2">Recipe Analyzer</h1>
+        <p className="text-muted max-w-2xl mx-auto">
+          Capture your ingredients or upload a photo to discover recipes you can make.
+        </p>
+      </header>
 
-        {/* Floating circular + button in bottom-right */}
-        {/* <div className="absolute bottom-4 right-4 group flex items-center">
-          <div className="mr-3 bg-black text-white text-sm rounded px-3 py-1 opacity-0 -translate-x-2 group-hover:opacity-100 group-hover:translate-x-0 transition-all duration-200 whitespace-nowrap">
-            Upload Image / Take Photo
-          </div>
-          <button
-            className="w-14 h-14 rounded-full bg-blue-600 text-white flex items-center justify-center text-3xl hover:bg-blue-700 transition-colors"
-            aria-label="Upload Image or Take Photo"
-          >
-            +
-          </button>
-        </div> */}
-
-
-
-
-    <div className="absolute bottom-4 right-4">
-      <SpeedDialTooltipOpen />
-    </div>
-
-        
-
-        
-      </div>
-
-      {/* Ingredients Section */}
-      <div className="flex flex-col items-center justify-center w-full border-2 border-solid border-gray-300 rounded-lg p-12">
-        <h1 className="text-3xl font-bold mb-4">Ingredients</h1>
-        <ul className="grid grid-cols-3 gap-x-8 list-disc list-inside text-gray-700 text-lg">
-          <li>Apples</li>
-          <li>Chicken</li>
-          <li>Broccoli</li>
-          <li>Tomatoes</li>
-          <li>Carrots</li>
-          <li>Flour</li>
-          <li>Ketchup</li>
-          <li>Lettuce</li>
-          <li>White Bread</li>
-          <li>Steak</li>
-          <li>Butter</li>
-          <li>2% Milk</li>
-        </ul>
-      </div>
-
-
-
-
-      {/* Recipes Section */}
-      <div className="flex flex-col w-full border-2 border-solid border-gray-300 rounded-lg p-12 gap-8">
-        <h1 className="text-3xl font-bold mb-4 text-center">Recipes</h1>
-
-        {/* Recipe Entry 1 */}
-        <div className="flex flex-col sm:flex-row gap-6 items-stretch h-48 w-full">
-          {/* Recipe Image - fixed square */}
-          <div className="w-48 h-48 bg-gray-200 flex items-center justify-center rounded">
-            <span className="text-gray-500 text-center text-sm">Recipe Img Placeholder</span>
-          </div>
-
-          {/* Description - fills rest of row, matches height */}
-          <div className="flex-1 h-full bg-gray-100 rounded p-4 overflow-auto">
-            <h2 className="text-xl font-semibold mb-2">Recipe Title</h2>
-            <p className="text-gray-700">
-              This is where your recipe description goes. Everything here is constrained to match the height of the image.
-            </p>
-          </div>
-        </div>
-
-        {/* Recipe Entry 2 */}
-        <div className="flex flex-col sm:flex-row gap-6 items-stretch h-48 w-full">
-          <div className="w-48 h-48 bg-gray-200 flex items-center justify-center rounded">
-            <span className="text-gray-500 text-center text-sm">Recipe Img Placeholder</span>
-          </div>
-          <div className="flex-1 h-full bg-gray-100 rounded p-4 overflow-auto">
-            <h2 className="text-xl font-semibold mb-2">Another Recipe</h2>
-            <p className="text-gray-700">
-              Same layout here. The description box won’t get taller than the image, and will scroll if the text is too long.
-            </p>
-          </div>
-        </div>
-        {/* Recipe Entry 3 */}
-        <div className="flex flex-col sm:flex-row gap-6 items-stretch h-48 w-full">
-          <div className="w-48 h-48 bg-gray-200 flex items-center justify-center rounded">
-            <span className="text-gray-500 text-center text-sm">Recipe Img Placeholder</span>
-          </div>
-          <div className="flex-1 h-full bg-gray-100 rounded p-4 overflow-auto">
-            <h2 className="text-xl font-semibold mb-2">Another Recipe</h2>
-            <p className="text-gray-700">
-              Same layout here. The description box won’t get taller than the image, and will scroll if the text is too long.
-            </p>
-          </div>
-        </div>
-        {/* Recipe Entry 4 */}
-        <div className="flex flex-col sm:flex-row gap-6 items-stretch h-48 w-full">
-          <div className="w-48 h-48 bg-gray-200 flex items-center justify-center rounded">
-            <span className="text-gray-500 text-center text-sm">Recipe Img Placeholder</span>
-          </div>
-          <div className="flex-1 h-full bg-gray-100 rounded p-4 overflow-auto">
-            <h2 className="text-xl font-semibold mb-2">Another Recipe</h2>
-            <p className="text-gray-700">
-              Same layout here. The description box won’t get taller than the image, and will scroll if the text is too long.
-            </p>
-          </div>
+      {/* Main content grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        {/* Left column */}
+        <div className="space-y-8">
+          <PhotoCapture onCapture={onPhotoCapture} />
+          <IngredientsList ingredients={ingredients} />
         </div>
         
-          {/* Recipe Entry 5 */}
-          <div className="flex flex-col sm:flex-row gap-6 items-stretch h-48 w-full">
-          <div className="w-48 h-48 bg-gray-200 flex items-center justify-center rounded">
-            <span className="text-gray-500 text-center text-sm">Recipe Img Placeholder</span>
-          </div>
-          <div className="flex-1 h-full bg-gray-100 rounded p-4 overflow-auto">
-            <h2 className="text-xl font-semibold mb-2">Another Recipe</h2>
-            <p className="text-gray-700">
-              Same layout here. The description box won’t get taller than the image, and will scroll if the text is too long.
-            </p>
-          </div>
+        {/* Right column */}
+        <div>
+          <RecipeList recipes={recipes} />
         </div>
       </div>
-
-
+      
+      {/* Floating action button */}
+      <ActionButton />
     </div>
   );
 }
