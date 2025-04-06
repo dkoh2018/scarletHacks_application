@@ -62,10 +62,10 @@ export default function PhotoCapture({ onCapture }) {
   };
 
   return (
-    <div className="card p-6 flex flex-col items-center">
+    <div className="card p-6 flex flex-col items-center w-full">
       <h2 className="text-2xl font-semibold mb-4">Ingredient Photo</h2>
       
-      <div className="relative w-full max-w-md aspect-video bg-gray-800 rounded-lg overflow-hidden mb-4">
+      <div className="relative w-full aspect-video bg-gray-800 rounded-lg overflow-hidden mb-4">
         {loading && (
           <div className="absolute inset-0 flex items-center justify-center">
             <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
