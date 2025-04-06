@@ -38,7 +38,6 @@ A modern web application for recipe analysis based on your ingredients. Take a p
   - `PhotoCapture.js`: Camera and photo capture functionality
   - `IngredientsList.js`: Ingredient management interface
   - `RecipeList.js`: Recipe display and interaction
-  - `ActionButton.js`: Floating action button with menu
 
 ## Future Enhancements
 

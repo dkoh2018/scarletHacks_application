@@ -33,7 +33,7 @@ const userSchema = new mongoose.Schema({
   userId: { type: Number, required: true, unique: true },
   userName: { type: String, required: true },
   ingredients: [Number],
-  recommandedRecipeList: [Number],
+  recommendedRecipeList: [Number], // fixed spelling
 });
 const User = mongoose.model("User", userSchema);
 
@@ -143,7 +143,7 @@ async function findSimilarIngredientName(name) {
   return null;
 }
 
-// --- Gemini Analyze Route ---
+// --- Analyze Image and Update Ingredients ---
 app.post("/api/analyze/:userId", async (req, res) => {
   const userId = parseInt(req.params.userId);
   const INPUT_IMAGE_PATH = "image.png";
@@ -204,6 +204,115 @@ app.post("/api/analyze/:userId", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).send({ error: "Internal error", details: err.message });
+  }
+});
+
+// --- Recommend Recipe API ---
+app.post("/api/recommend/:userId", async (req, res) => {
+  const userId = parseInt(req.params.userId);
+  const { time = "under 15 min", level = "mid", allergies = [] } = req.body;
+  const useMock = process.env.USE_MOCK_GEMINI === "true";
+
+  try {
+    const user = await User.findOne({ userId });
+    if (!user) return res.status(404).send({ error: "User not found" });
+
+    const ingredients = await Ingredient.find({ id: { $in: user.ingredients } });
+    const ingredientNames = ingredients.map(i => i.name);
+
+    let recipe;
+
+    if (useMock) {
+      const last = await Recipe.findOne().sort({ recipeId: -1 });
+      const newId = last ? last.recipeId + 1 : 1000;
+      recipe = {
+        recipeId: newId,
+        recipeName: "Mock Tomato Milk Toast",
+        ingredientsList: user.ingredients,
+        instruction: "Toast the bread, add tomato and milk, then enjoy.",
+        time: 10,
+        level: level,
+        allergies: [],
+      };
+    } else {
+      const recipeModel = genAI.getGenerativeModel({
+        model: "gemini-2.5-pro-preview-03-25",
+        systemInstruction: `
+You are an expert recipe recommender.
+Recommend 8 creative recipes using user's ingredients.
+Avoid allergies. Match the cooking time and difficulty.
+Use only user's ingredients. Return JSON format only.`,
+      });
+
+      const prompt = `
+This user has: ${ingredientNames.join(", ")}.
+Time: ${time}. Level: ${level}. Allergies: ${allergies.join(", ")}.
+Return 1 recipe only. Format:
+{
+  "recipeId": number,
+  "recipeName": "string",
+  "ingredientsList": [int],
+  "instruction": "string",
+  "time": int,
+  "level": "easy|mid|hard",
+  "allergies": []
+}`;
+
+      const chat = recipeModel.startChat({
+        generationConfig: {
+          temperature: 1,
+          topP: 0.95,
+          topK: 64,
+          maxOutputTokens: 8192,
+          responseMimeType: "application/json",
+        },
+      });
+
+      const result = await chat.sendMessage(prompt);
+      const text = result.response.text();
+      recipe = JSON.parse(text.match(/({[\s\S]*})/)?.[1] ?? "{}");
+
+      if (!recipe.recipeId || !recipe.recipeName) {
+        return res.status(400).send({ error: "Invalid recipe response" });
+      }
+    }
+
+    const exists = await Recipe.findOne({ recipeId: recipe.recipeId });
+    if (!exists) {
+      const newRecipe = new Recipe(recipe);
+      await newRecipe.save();
+    }
+
+    const recipeList = new Set(user.recommendedRecipeList || []);
+    recipeList.add(recipe.recipeId);
+    user.recommendedRecipeList = Array.from(recipeList);
+    await user.save();
+
+    res.send({
+      message: useMock
+        ? "✅ Mock recipe generated and added to user"
+        : "✅ Recipe generated and added to user",
+      recipe,
+      userId,
+      updatedRecommendations: user.recommendedRecipeList,
+    });
+  } catch (err) {
+    console.error("❌ Recommend API Error:", err);
+    res.status(500).send({ error: "Internal error", details: err.message });
+  }
+});
+
+// --- ✅ NEW: Ingredient ID => Name Map ---
+app.get("/api/ingredientsMap", async (req, res) => {
+  try {
+    const ingredients = await Ingredient.find();
+    const map = {};
+    ingredients.forEach(i => {
+      map[i.id] = i.name;
+    });
+    res.send(map);
+  } catch (err) {
+    res.status(500).send({ error: "Failed to fetch ingredient map" });
   }
 });
 
@@ -288,7 +397,7 @@ app.post("/api/seed", async (req, res) => {
       userId: 1,
       userName: "Alice",
       ingredients: [1, 2],
-      recommandedRecipeList: [101],
+      recommendedRecipeList: [101],
     });
 
     res.send({ message: "Seed data inserted" });
@@ -297,7 +406,7 @@ app.post("/api/seed", async (req, res) => {
   }
 });
 
-// --- 404 Catch-all ---
+// --- 404 ---
 app.use((req, res) => {
   res.status(404).send("Page not found");
 });
