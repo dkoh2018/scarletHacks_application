@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import PhotoCapture from '../components/PhotoCapture';
 import IngredientsList from '../components/IngredientsList';
 import RecipeList from '../components/RecipeList';
-import ActionButton from '../components/ActionButton';
+// ActionButton removed as requested
 
 export default function Home() {
   const [ingredients, setIngredients] = useState([
@@ -144,11 +144,11 @@ export default function Home() {
             </div>
           </div>
         ) : (
-          /* After recipe generation - 2 columns layout */
+          /* After recipe generation - 2 columns layout with equal heights */
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* On mobile, this will stack vertically */}
             {/* Left side - stacked photo and ingredients */}
-            <div className="flex flex-col gap-8">
+            <div className="flex flex-col gap-8 h-[800px]">
               <div className="mx-auto w-full max-w-lg">
                 <PhotoCapture onCapture={onPhotoCapture} />
               </div>
@@ -161,15 +161,14 @@ export default function Home() {
             </div>
             
             {/* Right side - recipes */}
-            <div className="slide-in-right">
+            <div className="slide-in-right h-[855px] flex flex-col">
               <RecipeList recipes={recipes} />
             </div>
           </div>
         )}
       </div>
       
-      {/* Floating action button */}
-      <ActionButton />
+      {/* ActionButton removed as requested */}
     </div>
   );
 }

@@ -24,7 +24,7 @@ export default function RecipeList({ recipes = [] }) {
   };
 
   return (
-    <div className="card p-6 w-full">
+    <div className="card p-6 w-full h-full flex flex-col" style={{ maxHeight: '100%' }}>
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-2xl font-semibold">Recommended Recipes</h2>
         <span className="bg-primary-light text-white text-sm py-1 px-2 rounded-full">
@@ -36,7 +36,7 @@ export default function RecipeList({ recipes = [] }) {
         Recipes you can make with your ingredients. Click for details.
       </p>
 
-      <div className="space-y-4">
+      <div className="flex-grow space-y-3 overflow-y-auto pr-2" style={{ maxHeight: 'calc(100% - 80px)' }}>
         {recipes.map((recipe) => (
           <div key={recipe.id} className="transition-all duration-300">
             {/* Recipe Card - Minimal Card Design */}
@@ -45,12 +45,12 @@ export default function RecipeList({ recipes = [] }) {
               className="group cursor-pointer bg-white rounded-lg shadow-sm hover:shadow-md transition-all overflow-hidden border border-gray-200"
             >
               {/* Image Placeholder */}
-              <div className="w-full h-40 bg-gray-200 flex items-center justify-center">
+              <div className="w-full h-32 bg-gray-200 flex items-center justify-center">
                 <span className="text-gray-500 font-light">{recipe.title}</span>
               </div>
               
               {/* Card Content */}
-              <div className="p-4">
+              <div className="p-3">
                 <h3 className="text-lg font-medium text-primary group-hover:text-primary-dark">
                   {recipe.title}
                 </h3>
