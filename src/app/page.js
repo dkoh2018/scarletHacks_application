@@ -1,11 +1,22 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
+import { useSession } from 'next-auth/react';
+import { useRouter } from 'next/navigation';
 import PhotoCapture from '../components/PhotoCapture';
 import IngredientsList from '../components/IngredientsList';
 import RecipeList from '../components/RecipeList';
 
 export default function Home() {
+  const { data: session, status } = useSession();
+  const router = useRouter();
+  
+  // Redirect to login if not authenticated
+  useEffect(() => {
+    if (status === 'unauthenticated') {
+      router.push('/login');
+    }
+  }, [status, router]);
   const [ingredients, setIngredients] = useState([
     'Apples', 'Chicken', 'Broccoli', 'Tomatoes', 'Carrots', 
     'Flour', 'Ketchup', 'Lettuce', 'White Bread', 'Steak', 
@@ -113,6 +124,15 @@ export default function Home() {
   const handleGenerateRecipes = () => {
     setShowRecipes(true);
   };
+
+  // Show loading state while checking authentication
+  if (status === 'loading') {
+    return (
+      <div className="flex justify-center items-center min-h-[60vh]">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-12">
