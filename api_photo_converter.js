@@ -8,6 +8,7 @@ const { GoogleAIFileManager } = require("@google/generative-ai/server");
 const fs = require("node:fs");
 const path = require("path");
 const sharp = require("sharp");
+require("dotenv").config(); 
 
 // --- Configuration ---
 const apiKey = process.env.GEMINI_API_KEY;
