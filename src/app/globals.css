@@ -114,6 +114,27 @@ body {
   to { opacity: 1; }
 }
 
+/* Slide animations */
+.slide-in-right {
+  animation: slideInRight 0.5s ease-out forwards;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Recipe expansion animation */
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
 /* Input styling */
 input, select, textarea {
   background: var(--card-bg);
