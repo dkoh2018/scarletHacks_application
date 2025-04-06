@@ -48,3 +48,4 @@ export default function IngredientsList({ ingredients = [] }) {
     </div>
   );
 }
+
