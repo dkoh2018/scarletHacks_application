@@ -4,7 +4,6 @@ import { useRef, useState } from 'react';
 import PhotoCapture from '../components/PhotoCapture';
 import IngredientsList from '../components/IngredientsList';
 import RecipeList from '../components/RecipeList';
-// ActionButton removed as requested
 
 export default function Home() {
   const [ingredients, setIngredients] = useState([
@@ -167,8 +166,6 @@ export default function Home() {
           </div>
         )}
       </div>
-      
-      {/* ActionButton removed as requested */}
     </div>
   );
 }
