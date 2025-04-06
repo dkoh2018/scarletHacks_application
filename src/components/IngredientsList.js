@@ -1,7 +1,8 @@
 'use client';
+
 import { useState } from 'react';
 
-export default function IngredientsList({ ingredients = [], onGenerateClick }) {
+export default function IngredientsList({ ingredients = [] }) {
   const [localIngredients, setLocalIngredients] = useState(ingredients);
 
   const handleRemoveIngredient = (index) => {
@@ -17,10 +18,10 @@ export default function IngredientsList({ ingredients = [], onGenerateClick }) {
         </span>
       </div>
 
-      <p className="text-muted mb-4">
-        These ingredients were detected from your photo or loaded from your profile.
-      </p>
+      {/* Ingredients will be loaded from database */}
+      <p className="text-muted mb-4">These ingredients were detected from your photo or loaded from your profile.</p>
 
+      {/* Ingredients grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
         {localIngredients.map((ingredient, index) => (
           <div 
@@ -43,17 +44,6 @@ export default function IngredientsList({ ingredients = [], onGenerateClick }) {
         <p className="text-muted text-center py-4">
           No ingredients added yet. Add some or take a photo!
         </p>
-      )}
-
-      {localIngredients.length > 0 && (
-        <div className="mt-6 text-center">
-          <button 
-            className="btn btn-primary"
-            onClick={onGenerateClick}
-          >
-            Apply Preferences
-          </button>
-        </div>
       )}
     </div>
   );
