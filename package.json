@@ -21,11 +21,15 @@
     "@mui/material": "^7.0.1",
     "axios": "^1.8.4",
     "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
     "mongodb": "^6.15.0",
     "mongoose": "^8.13.2",
     "next": "15.2.4",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "sharp": "^0.34.0",
+    "string-similarity": "^4.0.4"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
